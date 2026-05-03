@@ -3,24 +3,26 @@
 
 import { useEffect, useState } from 'react';
 
-interface RSVPEntry {
-  Timestamp: string;
-  Attending: string;
-  'Full Name': string;
-  Guests: string;
-  'Song Request': string;
-  'Traveling From Abroad': string;
-  'Travel From Location': string;
+interface RSVP {
+  id: number;
+  timestamp: string;
+  attending: boolean;
+  name: string;
+  guests: string;
+  song_request: string;
+  traveling: boolean;
+  travel_from: string;
 }
 
-interface WishEntry {
-  Timestamp: string;
-  Message: string;
+interface Wish {
+  id: number;
+  timestamp: string;
+  message: string;
 }
 
 export default function AdminPage() {
-  const [rsvpData, setRsvpData] = useState<RSVPEntry[]>([]);
-  const [wishesData, setWishesData] = useState<WishEntry[]>([]);
+  const [rsvpData, setRsvpData] = useState<RSVP[]>([]);
+  const [wishesData, setWishesData] = useState<Wish[]>([]);
   const [activeTab, setActiveTab] = useState<'rsvp' | 'wishes'>('rsvp');
   const [loading, setLoading] = useState(true);
   const [password, setPassword] = useState('');
@@ -56,13 +58,27 @@ export default function AdminPage() {
     }
   };
 
-  const downloadExcel = async (type: 'rsvp' | 'wishes') => {
-    const response = await fetch(`/api/export?type=${type}`);
-    const blob = await response.blob();
+  const exportToCSV = (type: 'rsvp' | 'wishes') => {
+    let data: any[] = [];
+    let headers: string[] = [];
+    
+    if (type === 'rsvp') {
+      headers = ['ID', 'Timestamp', 'Attending', 'Name', 'Guests', 'Song Request', 'Traveling', 'From'];
+      data = rsvpData.map(r => [
+        r.id, r.timestamp, r.attending ? 'Yes' : 'No', r.name, r.guests, r.song_request, r.traveling ? 'Yes' : 'No', r.travel_from
+      ]);
+    } else {
+      headers = ['ID', 'Timestamp', 'Message'];
+      data = wishesData.map(w => [w.id, w.timestamp, w.message]);
+    }
+    
+    const csvRows = [headers, ...data];
+    const csvContent = csvRows.map(row => row.join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${type}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    a.download = `${type}_${new Date().toISOString().split('T')[0]}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -156,7 +172,7 @@ export default function AdminPage() {
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
           <button
             onClick={() => setActiveTab('rsvp')}
             style={{
@@ -187,93 +203,97 @@ export default function AdminPage() {
           </button>
         </div>
 
+        <div style={{
+          background: 'rgba(255,255,255,0.2)',
+          backdropFilter: 'blur(20px)',
+          borderRadius: '16px',
+          padding: '1.5rem',
+          marginBottom: '1.5rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '1rem'
+        }}>
+          <div>
+            <strong>Total {activeTab === 'rsvp' ? 'RSVPs' : 'Wishes'}:</strong> {activeTab === 'rsvp' ? rsvpData.length : wishesData.length}
+          </div>
+          <button
+            onClick={() => exportToCSV(activeTab)}
+            style={{
+              padding: '0.5rem 1.5rem',
+              background: '#C4A265',
+              color: '#4D403A',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 600
+            }}
+          >
+            Export to CSV
+          </button>
+        </div>
+
         {loading ? (
           <div style={{ textAlign: 'center', padding: '3rem' }}>Loading...</div>
         ) : (
-          <>
-            <div style={{
-              background: 'rgba(255,255,255,0.2)',
-              backdropFilter: 'blur(20px)',
-              borderRadius: '16px',
-              padding: '1.5rem',
-              marginBottom: '1.5rem',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <div>
-                <strong>Total {activeTab === 'rsvp' ? 'RSVPs' : 'Wishes'}:</strong> {activeTab === 'rsvp' ? rsvpData.length : wishesData.length}
-              </div>
-              <button
-                onClick={() => downloadExcel(activeTab)}
-                style={{
-                  padding: '0.5rem 1.5rem',
-                  background: '#C4A265',
-                  color: '#4D403A',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: 600
-                }}
-              >
-                Download Excel
-              </button>
-            </div>
-
-            <div style={{
-              background: 'rgba(255,255,255,0.2)',
-              backdropFilter: 'blur(20px)',
-              borderRadius: '16px',
-              overflowX: 'auto',
-              padding: '1rem'
-            }}>
-              {activeTab === 'rsvp' ? (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid rgba(77,64,58,0.2)' }}>
-                      <th style={{ padding: '0.75rem', textAlign: 'left' }}>Date</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'left' }}>Attending</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'left' }}>Name</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'left' }}>Guests</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'left' }}>Song</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'left' }}>Traveling</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'left' }}>From</th>
+          <div style={{
+            background: 'rgba(255,255,255,0.2)',
+            backdropFilter: 'blur(20px)',
+            borderRadius: '16px',
+            overflowX: 'auto',
+            padding: '1rem'
+          }}>
+            {activeTab === 'rsvp' ? (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid rgba(77,64,58,0.2)' }}>
+                    <th style={{ padding: '0.75rem', textAlign: 'left' }}>ID</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left' }}>Date</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left' }}>Attending</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left' }}>Name</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left' }}>Guests</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left' }}>Song</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left' }}>Traveling</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left' }}>From</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rsvpData.map((rsvp) => (
+                    <tr key={rsvp.id} style={{ borderBottom: '1px solid rgba(77,64,58,0.1)' }}>
+                      <td style={{ padding: '0.75rem' }}>{rsvp.id}</td>
+                      <td style={{ padding: '0.75rem' }}>{new Date(rsvp.timestamp).toLocaleDateString()}</td>
+                      <td style={{ padding: '0.75rem' }}>{rsvp.attending ? 'Yes' : 'No'}</td>
+                      <td style={{ padding: '0.75rem' }}>{rsvp.name}</td>
+                      <td style={{ padding: '0.75rem' }}>{rsvp.guests || '-'}</td>
+                      <td style={{ padding: '0.75rem' }}>{rsvp.song_request || '-'}</td>
+                      <td style={{ padding: '0.75rem' }}>{rsvp.traveling ? 'Yes' : 'No'}</td>
+                      <td style={{ padding: '0.75rem' }}>{rsvp.travel_from || '-'}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {rsvpData.map((rsvp, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid rgba(77,64,58,0.1)' }}>
-                        <td style={{ padding: '0.75rem' }}>{new Date(rsvp.Timestamp).toLocaleDateString()}</td>
-                        <td style={{ padding: '0.75rem' }}>{rsvp.Attending}</td>
-                        <td style={{ padding: '0.75rem' }}>{rsvp['Full Name']}</td>
-                        <td style={{ padding: '0.75rem' }}>{rsvp.Guests || '-'}</td>
-                        <td style={{ padding: '0.75rem' }}>{rsvp['Song Request'] || '-'}</td>
-                        <td style={{ padding: '0.75rem' }}>{rsvp['Traveling From Abroad']}</td>
-                        <td style={{ padding: '0.75rem' }}>{rsvp['Travel From Location'] || '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid rgba(77,64,58,0.2)' }}>
-                      <th style={{ padding: '0.75rem', textAlign: 'left' }}>Date</th>
-                      <th style={{ padding: '0.75rem', textAlign: 'left' }}>Message</th>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid rgba(77,64,58,0.2)' }}>
+                    <th style={{ padding: '0.75rem', textAlign: 'left' }}>ID</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left' }}>Date</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'left' }}>Message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {wishesData.map((wish) => (
+                    <tr key={wish.id} style={{ borderBottom: '1px solid rgba(77,64,58,0.1)' }}>
+                      <td style={{ padding: '0.75rem' }}>{wish.id}</td>
+                      <td style={{ padding: '0.75rem' }}>{new Date(wish.timestamp).toLocaleDateString()}</td>
+                      <td style={{ padding: '0.75rem' }}>{wish.message}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {wishesData.map((wish, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid rgba(77,64,58,0.1)' }}>
-                        <td style={{ padding: '0.75rem' }}>{new Date(wish.Timestamp).toLocaleDateString()}</td>
-                        <td style={{ padding: '0.75rem' }}>{wish.Message}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         )}
       </div>
     </div>
